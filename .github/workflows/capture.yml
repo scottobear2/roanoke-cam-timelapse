@@ -1,0 +1,38 @@
+name: Capture Camera Frame
+
+on:
+  schedule:
+    # Runs every 5 minutes. GitHub cron can lag a few minutes under load,
+    # so don't expect perfectly exact 5-min spacing.
+    - cron: '*/5 * * * *'
+  workflow_dispatch: {}  # lets you trigger it manually too
+
+permissions:
+  contents: write
+
+jobs:
+  capture:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+
+      - name: Download frame
+        run: |
+          mkdir -p frames
+          ts=$(date -u +"%Y%m%dT%H%M%SZ")
+          curl -sSL -o "frames/${ts}.jpg" \
+            "https://extcityservices.roanokeva.gov/api/citycams/v1/getjpg/sc03"
+          # Basic sanity check: make sure we actually got an image, not an error page
+          file "frames/${ts}.jpg"
+
+      - name: Commit frame
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add frames/*.jpg
+          git diff --staged --quiet || git commit -m "Add frame ${ts}"
+          git pull --rebase
+          git push
